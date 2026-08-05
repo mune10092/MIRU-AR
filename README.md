@@ -1,36 +1,146 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AR測定具レビュー
 
-## Getting Started
+CADから出力したGLB形式の測定具を、PCでは通常の3Dモデルとして確認し、iPhoneでは画像マーカー上に原寸大AR表示するWebアプリです。
 
-First, run the development server:
+## 技術構成（最終想定）
+
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- Three.js
+- MindAR
+- Supabase
+- Netlify
+
+## 開発ステップ（このリポジトリの現状）
+
+実装済み:
+
+- トップページ (`/`)
+- 仮の測定具一覧 (`/tools`)
+- 仮の測定具詳細 (`/tools/[id]`)
+- レスポンシブな仮UI
+- Netlify デプロイ想定の設定 (`netlify.toml`)
+- `.env.example`
+- Three.js による GLB 3Dビューア（`/tools/gauge-001`、静的 iframe ビューア）
+- ARカメラ動作テスト（`/ar-camera-test.html`、背面カメラ起動確認のみ）
+- 本 README
+
+未実装（後続ステップ）:
+
+- MindAR / ARマーカー認識 / 原寸大AR
+- Supabase
+- ログイン
+- QRコード
+- コメント
+
+## 必要環境
+
+- Node.js 20 以上（推奨）
+- npm
+
+## セットアップ
+
+```bash
+npm install
+cp .env.example .env.local
+```
+
+`.env.local` の値はステップ1では空のままで動作します。Supabase 接続は後続で追加します。
+
+## ローカル起動
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- PCのみ: [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### iPad から確認する場合（重要）
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`next dev` は LAN 経由の `/_next/*` をブロックすることがあり、iPad では
+「アプリを起動中…」のまま止まることがあります。
 
-## Learn More
+**iPad確認時は次を使ってください（build + 本番サーバー）:**
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run dev:lan
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+起動後の URL 例:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+iPad: http://192.168.221.194:3000
+```
 
-## Deploy on Vercel
+1. 既存サーバーを止める（Ctrl+C）
+2. `npm run dev:lan` を実行（初回は build のため少し時間がかかります）
+3. iPad Safari の **プライベートブラウズ** で上記 URL を開く
+4. `/tools/gauge-001` で確認する
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+画面上の「JS診断」が `インラインOK / GLB到達OK` になっていれば通信は正常です。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### ARカメラ動作テスト（STEP3-A）
+
+静的ページ（iframe 不可）:
+
+```text
+/ar-camera-test.html
+```
+
+- gauge-001 詳細の「ARカメラ動作テスト」から直接遷移
+- **カメラは HTTPS（または localhost）が必要**
+- LAN の `http://192.168.x.x` では iPad Safari が拒否するため、Netlify の https URL で確認する
+
+## 主な画面
+
+| パス | 内容 |
+|------|------|
+| `/` | アプリ概要と一覧への導線 |
+| `/tools` | 測定具の仮一覧 |
+| `/tools/gauge-001` | 測定具詳細 + Three.js GLBビューア（`demo.glb`） |
+| `/tools/gauge-002` など | 測定具詳細（3Dはプレースホルダ / ARは未実装） |
+
+## GLB の配置
+
+詳細は [public/models/README.md](public/models/README.md) を参照してください。
+
+```bash
+# 例: ローカルに demo.glb を置く（Git には含めない）
+# public/models/demo.glb
+```
+
+## スクリプト
+
+```bash
+npm run dev    # 開発サーバー
+npm run lint   # ESLint
+npm run build  # 本番ビルド
+npm run start  # 本番サーバー（build 後）
+```
+
+## Netlify へのデプロイ
+
+1. このリポジトリを Git 連携で Netlify に接続する
+2. ビルド設定は `netlify.toml` を参照（`npm run build`、`@netlify/plugin-nextjs`）
+3. 環境変数は Netlify の UI で `.env.example` に準拠して設定する（後続ステップ）
+
+ローカルから CLI でデプロイする場合の例:
+
+```bash
+npx netlify deploy --build
+```
+
+## ディレクトリ構成（抜粋）
+
+```
+src/
+  app/                 # App Router ページ
+  components/          # Header, ToolCard
+  components/three/    # GLB 3Dビューア（Client Component）
+  data/tools.ts        # 仮の測定具データ
+  lib/tools.ts         # 取得ヘルパー（将来 Supabase 差し替え用）
+public/models/         # GLB配置先（*.glb は Git 除外）
+netlify.toml
+.env.example
+```
