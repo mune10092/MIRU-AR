@@ -111,15 +111,37 @@ export default async function ToolDetailPage({ params }: ToolDetailPageProps) {
         </section>
 
         <section className="flex min-h-56 flex-col rounded-lg border border-slate-200 bg-white p-5 sm:min-h-72">
-          <h2 className="text-sm font-semibold text-slate-900">
-            AR表示（未実装）
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">
-            iPhone向け: MindAR による原寸大AR表示エリアのプレースホルダです。
-          </p>
-          <div className="mt-4 flex flex-1 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">
-            AR表示予定
-          </div>
+          {tool.id === "gauge-001" ? (
+            <>
+              <h2 className="text-sm font-semibold text-slate-900">AR表示</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                MindAR による画像マーカートラッキングの試験ページです（立方体表示）。
+              </p>
+              <div className="mt-4 space-y-3">
+                <a
+                  href="/ar-marker.html"
+                  className="inline-flex h-11 items-center justify-center rounded-md bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                >
+                  AR表示
+                </a>
+                <p className="text-xs text-slate-500">
+                  iframe ではなく別ページで開きます。HTTPS（Netlify）が必要です。
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold text-slate-900">
+                AR表示（未実装）
+              </h2>
+              <p className="mt-2 text-sm text-slate-500">
+                iPhone向け: MindAR による原寸大AR表示エリアのプレースホルダです。
+              </p>
+              <div className="mt-4 flex flex-1 items-center justify-center rounded-md border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-400">
+                AR表示予定
+              </div>
+            </>
+          )}
         </section>
       </div>
     </div>
