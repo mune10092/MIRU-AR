@@ -34,4 +34,5 @@ public/ar/marker-test.png
 
 1. Netlify の https URL、または `localhost` で開く
 2. `/ar-marker.html` で「ARを開始」
-3. 印刷したマーカーをカメラに映すと立方体が表示されます
+3. 印刷したマーカーをカメラに映すと GLB（またはデバッグ立方体）が表示されます
+4. `public/models/demo.glb` の配置は [models README](../models/README.md) を参照

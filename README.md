@@ -24,7 +24,7 @@ CADから出力したGLB形式の測定具を、PCでは通常の3Dモデルと�
 - `.env.example`
 - Three.js による GLB 3Dビューア（`/tools/gauge-001`、静的 iframe ビューア）
 - ARカメラ動作テスト（`/ar-camera-test.html`、背面カメラ起動確認のみ）
-- ARマーカーテスト（`/ar-marker.html`、MindAR + 立方体）
+- ARマーカーテスト（`/ar-marker.html`、MindAR + GLB / デバッグ立方体）
 - 本 README
 
 未実装（後続ステップ）:
@@ -90,17 +90,24 @@ iPad: http://192.168.221.194:3000
 - gauge-001 詳細の「ARカメラ動作テスト」から直接遷移
 - **カメラは HTTPS（または localhost）が必要**
 
-### ARマーカーテスト（STEP3-B）
+### ARマーカーテスト（STEP3-B / STEP4-A）
 
 ```text
 /ar-marker.html
 ```
 
 1. `public/ar/targets.mind` を配置（[配置手順](public/ar/README.md)）
-2. Netlify の **https** URL、または `localhost` で開く
-3. 「ARを開始」→ 印刷マーカーを映す → 立方体が表示される
+2. `public/models/demo.glb` を配置（[モデル手順](public/models/README.md)）
+3. Netlify の **https** URL、または `localhost` で開く
+4. 「ARを開始」→ 印刷マーカーを映す → GLB（またはデバッグ立方体）が表示される
+5. 「デバッグ表示」で実モデル/立方体切替、回転、配置モードを確認
 
-Windows で `npm install` 時に canvas の native ビルドで失敗する場合は、リポジトリの `.npmrc`（`ignore-scripts=true`）を利用してください。
+#### 倍率の単位（STEP4-A）
+
+- glTF = メートル
+- MindAR ターゲット幅 = 1
+- `markerPhysicalWidthMm > 0` のとき `finalScale = (1000 / markerPhysicalWidthMm) * scaleCorrection`
+- `markerPhysicalWidthMm === 0` のときは `scaleCorrection` のみ（表示確認用）
 
 ## 主な画面
 
@@ -110,7 +117,7 @@ Windows で `npm install` 時に canvas の native ビルドで失敗する場�
 | `/tools` | 測定具の仮一覧 |
 | `/tools/gauge-001` | 測定具詳細 + GLBビューア + AR導線 |
 | `/ar-camera-test.html` | 背面カメラ起動テスト |
-| `/ar-marker.html` | MindAR マーカー + 立方体テスト |
+| `/ar-marker.html` | MindAR マーカー + GLB/立方体 AR |
 | `/tools/gauge-002` など | 測定具詳細（プレースホルダ） |
 
 ## GLB の配置
