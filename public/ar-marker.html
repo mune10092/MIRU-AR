@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <title>ARマーカーテスト</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0f172a;
+        color: #e2e8f0;
+        font-family: sans-serif;
+      }
+      .app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      #ar-container {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: #020617;
+      }
+      #ar-container video,
+      #ar-container canvas {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover;
+      }
+      #message-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: rgba(15, 23, 42, 0.55);
+        z-index: 2;
+        box-sizing: border-box;
+        pointer-events: none;
+      }
+      .panel {
+        width: min(520px, 100%);
+        background: rgba(30, 41, 59, 0.92);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 16px;
+        pointer-events: auto;
+      }
+      .status {
+        margin: 0 0 12px;
+        font-size: 15px;
+        line-height: 1.6;
+        color: #e2e8f0;
+      }
+      .status-error {
+        color: #fecaca;
+      }
+      .debug {
+        margin: 0;
+        padding: 10px;
+        border-radius: 8px;
+        background: #020617;
+        color: #94a3b8;
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .controls {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 3;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        align-items: center;
+        padding: 16px;
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+        background: linear-gradient(
+          to top,
+          rgba(2, 6, 23, 0.92),
+          rgba(2, 6, 23, 0)
+        );
+        box-sizing: border-box;
+      }
+      button,
+      .link-btn {
+        min-width: 120px;
+        height: 44px;
+        border: 0;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        text-decoration: none;
+        box-sizing: border-box;
+      }
+      #start-btn {
+        background: #38bdf8;
+        color: #0f172a;
+      }
+      #stop-btn {
+        background: #334155;
+        color: #e2e8f0;
+      }
+      .link-btn {
+        background: transparent;
+        color: #cbd5e1;
+        border: 1px solid #475569;
+      }
+      button:disabled {
+        opacity: 0.5;
+      }
+      .axes-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: #cbd5e1;
+        user-select: none;
+      }
+      .top-link {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        z-index: 3;
+        color: #cbd5e1;
+        font-size: 13px;
+        text-decoration: none;
+        background: rgba(15, 23, 42, 0.7);
+        padding: 8px 10px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <a class="top-link" href="/tools/gauge-001">← 測定具詳細へ</a>
+      <div id="ar-container"></div>
+
+      <div id="message-overlay">
+        <div class="panel">
+          <p id="status-text" class="status">停止済み</p>
+          <pre id="debug-text" class="debug"></pre>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="start-btn" type="button">ARを開始</button>
+        <button id="stop-btn" type="button" disabled>AR停止</button>
+        <label class="axes-label">
+          <input id="axes-toggle" type="checkbox" />
+          座標軸
+        </label>
+        <a class="link-btn" href="/tools/gauge-001">アプリへ戻る</a>
+      </div>
+    </div>
+
+    <script>
+      window.onerror = function (message) {
+        var el = document.getElementById("status-text");
+        if (el) {
+          el.textContent = "JSエラー: " + message;
+          el.className = "status status-error";
+        }
+      };
+    </script>
+    <script
+      src="/ar-marker.bundle.js"
+      onerror="document.getElementById('status-text').textContent='バンドルの読み込みに失敗しました';"
+    ></script>
+  </body>
+</html>

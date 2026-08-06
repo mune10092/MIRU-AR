@@ -24,11 +24,12 @@ CADから出力したGLB形式の測定具を、PCでは通常の3Dモデルと�
 - `.env.example`
 - Three.js による GLB 3Dビューア（`/tools/gauge-001`、静的 iframe ビューア）
 - ARカメラ動作テスト（`/ar-camera-test.html`、背面カメラ起動確認のみ）
+- ARマーカーテスト（`/ar-marker.html`、MindAR + 立方体）
 - 本 README
 
 未実装（後続ステップ）:
 
-- MindAR / ARマーカー認識 / 原寸大AR
+- GLB の原寸大AR表示
 - Supabase
 - ログイン
 - QRコード
@@ -82,15 +83,24 @@ iPad: http://192.168.221.194:3000
 
 ### ARカメラ動作テスト（STEP3-A）
 
-静的ページ（iframe 不可）:
-
 ```text
 /ar-camera-test.html
 ```
 
 - gauge-001 詳細の「ARカメラ動作テスト」から直接遷移
 - **カメラは HTTPS（または localhost）が必要**
-- LAN の `http://192.168.x.x` では iPad Safari が拒否するため、Netlify の https URL で確認する
+
+### ARマーカーテスト（STEP3-B）
+
+```text
+/ar-marker.html
+```
+
+1. `public/ar/targets.mind` を配置（[配置手順](public/ar/README.md)）
+2. Netlify の **https** URL、または `localhost` で開く
+3. 「ARを開始」→ 印刷マーカーを映す → 立方体が表示される
+
+Windows で `npm install` 時に canvas の native ビルドで失敗する場合は、リポジトリの `.npmrc`（`ignore-scripts=true`）を利用してください。
 
 ## 主な画面
 
@@ -98,8 +108,10 @@ iPad: http://192.168.221.194:3000
 |------|------|
 | `/` | アプリ概要と一覧への導線 |
 | `/tools` | 測定具の仮一覧 |
-| `/tools/gauge-001` | 測定具詳細 + Three.js GLBビューア（`demo.glb`） |
-| `/tools/gauge-002` など | 測定具詳細（3Dはプレースホルダ / ARは未実装） |
+| `/tools/gauge-001` | 測定具詳細 + GLBビューア + AR導線 |
+| `/ar-camera-test.html` | 背面カメラ起動テスト |
+| `/ar-marker.html` | MindAR マーカー + 立方体テスト |
+| `/tools/gauge-002` など | 測定具詳細（プレースホルダ） |
 
 ## GLB の配置
 
