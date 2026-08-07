@@ -37,26 +37,45 @@ http://localhost:3000/tools/gauge-001
 http://localhost:3000/ar-marker.html
 ```
 
+デバッグ（原寸・原点・向き調整）:
+
+```text
+http://localhost:3000/ar-marker.html?debug=1
+```
+
 または Netlify の https URL:
 
 ```text
-https://<サイト>/ar-marker.html
+https://<サイト>/ar-marker.html?debug=1
 ```
 
 1. `public/ar/targets.mind` も配置する
 2. 「ARを開始」→ マーカーを映す
-3. デバッグパネルで「実モデル / 立方体」を切り替え可能
+3. `?debug=1` で実モデル/立方体切替、位置・回転・マーカー実幅を調整可能
 
-### AR の単位・倍率（STEP4-A）
+### AR の単位・原寸倍率（STEP4-B）
 
 - glTF の距離単位は **メートル (m)** として扱う
-- MindAR の画像ターゲット空間は **マーカー幅 = 1** が基準
-- `markerPhysicalWidthMm === 0` のとき: `finalScale = scaleCorrection`
-- `markerPhysicalWidthMm > 0` のとき:
-  - `baseScale = 1000 / markerPhysicalWidthMm`
-  - `finalScale = baseScale * scaleCorrection`
+- MindAR の画像ターゲット空間は **認識画像横幅 = 1** が基準
+- `markerPhysicalWidthMm` は用紙幅ではなく、認識画像の印刷実幅（mm）
+
+```text
+markerWidthMeters = markerPhysicalWidthMm / 1000
+baseScale         = 1 / markerWidthMeters = 1000 / markerPhysicalWidthMm
+finalScale        = baseScale * scaleCorrection
+```
+
+例（認識画像実幅 250mm、CAD 400mm = GLB 0.4m）:
+
+```text
+baseScale = 4
+AR上サイズ = 0.4 × 4 = 1.6
+実世界換算 = 250mm × 1.6 = 400mm（理論上原寸）
+```
+
+- `markerPhysicalWidthMm === 0` のとき: 原寸未設定（`scaleCorrection` のみ）
 - 倍率は geometry に焼き込まず、`Object3D.scale` で適用する
-- 原寸の最終校正は次の STEP で行う
+- 印刷時の「フィット / 縮小」に注意し、必ず定規で実測すること
 
 ## ビルドについて
 
