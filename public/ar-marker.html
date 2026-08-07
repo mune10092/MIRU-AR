@@ -28,7 +28,8 @@
         position: absolute;
         inset: 0;
         overflow: hidden;
-        background: #020617;
+        /* カメラ映像の背後に黒を敷かない（実物比較のため） */
+        background: transparent;
         touch-action: none;
       }
       #ar-container video,
@@ -40,6 +41,14 @@
         height: 100% !important;
         object-fit: cover;
         touch-action: none;
+        background: transparent !important;
+      }
+      /* MindAR は video を z-index:-2 にするが、親の黒背景に埋もれるため手前へ */
+      #ar-container video {
+        z-index: 0 !important;
+      }
+      #ar-container canvas {
+        z-index: 1 !important;
       }
       #message-overlay {
         position: absolute;
@@ -48,20 +57,30 @@
         align-items: flex-start;
         justify-content: center;
         padding: 56px 12px 130px;
-        background: rgba(15, 23, 42, 0.45);
+        /* 全面を暗くしない。カメラ映像を常に見せる */
+        background: transparent;
         z-index: 2;
         box-sizing: border-box;
         pointer-events: none;
       }
+      #message-overlay.is-idle {
+        background: rgba(15, 23, 42, 0.72);
+      }
       .panel {
         width: min(640px, 100%);
-        background: rgba(30, 41, 59, 0.94);
+        background: rgba(30, 41, 59, 0.88);
         border: 1px solid #334155;
         border-radius: 12px;
         padding: 12px;
         pointer-events: auto;
         max-height: calc(100vh - 190px);
         overflow: auto;
+        backdrop-filter: blur(6px);
+      }
+      #message-overlay.is-ar-running .panel:not(.panel-debug) {
+        width: auto;
+        max-width: min(640px, calc(100% - 24px));
+        padding: 8px 12px;
       }
       .status-row {
         display: flex;

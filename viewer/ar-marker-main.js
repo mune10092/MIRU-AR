@@ -212,6 +212,43 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     overlayEl.style.display = visible ? "flex" : "none";
   }
 
+  /**
+   * AR実行中は全面暗幕をやめ、カメラ映像の上にコンパクトな状態表示だけにする。
+   * 停止中（idle）のみ背景を暗くして操作しやすくする。
+   */
+  function setOverlayMode(mode) {
+    if (!overlayEl) return;
+    overlayEl.classList.remove("is-idle", "is-ar-running");
+    if (mode === "idle") {
+      overlayEl.classList.add("is-idle");
+    } else if (mode === "ar") {
+      overlayEl.classList.add("is-ar-running");
+    }
+  }
+
+  /** カメラ映像が canvas の不透明クリアで隠れないようにする */
+  function ensureCameraVisibleThroughCanvas() {
+    if (!mindarThree || !mindarThree.renderer) return;
+    try {
+      mindarThree.renderer.setClearColor(0x000000, 0);
+      mindarThree.renderer.setClearAlpha(0);
+    } catch (e) {}
+    if (mindarThree.scene) {
+      mindarThree.scene.background = null;
+    }
+    if (mindarThree.renderer.domElement) {
+      mindarThree.renderer.domElement.style.background = "transparent";
+      mindarThree.renderer.domElement.style.zIndex = "1";
+    }
+    if (containerEl) {
+      var videos = containerEl.querySelectorAll("video");
+      for (var i = 0; i < videos.length; i++) {
+        videos[i].style.zIndex = "0";
+        videos[i].style.background = "transparent";
+      }
+    }
+  }
+
   function setSettingsMsg(message) {
     if (settingsMsgEl) settingsMsgEl.textContent = message || "";
   }
@@ -841,6 +878,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     if (startBtn) startBtn.disabled = false;
     if (stopBtn) stopBtn.disabled = true;
     setOverlayVisible(true);
+    setOverlayMode("idle");
     refreshStatusForModel();
     if (modelLoadState === "ready" && !running) {
       setStatus("停止済み：ARを開始できます", false);
@@ -882,13 +920,15 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 
     anchor.onTargetFound = function () {
       targetFound = true;
+      // 認識中はUIを隠してカメラ映像＋ARモデルだけ見せる（実物との原寸比較用）
       setOverlayVisible(false);
-      setStatus("マーカー認識中", false);
+      setStatus("マーカー認識中（カメラ映像と比較できます）", false);
       updateDebug(null);
     };
     anchor.onTargetLost = function () {
       targetFound = false;
       setOverlayVisible(true);
+      setOverlayMode("ar");
       setStatus("マーカーを映してください", false);
       updateDebug(null);
     };
@@ -918,6 +958,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     if (startBtn) startBtn.disabled = true;
     if (stopBtn) stopBtn.disabled = true;
     setOverlayVisible(true);
+    setOverlayMode("ar");
     setStatus("初期化中…", false);
     updateDebug(null);
 
@@ -974,16 +1015,21 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
           videos[i].playsInline = true;
         }
 
+        ensureCameraVisibleThroughCanvas();
+
         running = true;
         starting = false;
         targetFound = false;
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
         setOverlayVisible(true);
-        setStatus("マーカー検索中…", false);
+        setOverlayMode("ar");
+        setStatus("マーカー検索中…（カメラ映像が見えます）", false);
         updateDebug(null);
 
         mindarThree.renderer.setAnimationLoop(function () {
+          // 毎フレーム透過クリアを維持（黒でカメラを覆わない）
+          mindarThree.renderer.setClearColor(0x000000, 0);
           mindarThree.renderer.render(mindarThree.scene, mindarThree.camera);
         });
       })
@@ -1168,10 +1214,14 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   if (stopBtn) stopBtn.disabled = true;
   if (debugPanelEl) {
     debugPanelEl.style.display = DEBUG_QUERY ? "block" : "none";
+    if (DEBUG_QUERY) {
+      debugPanelEl.classList.add("panel-debug");
+    }
   }
   if (axesLabelEl) {
     axesLabelEl.style.display = DEBUG_QUERY ? "inline-flex" : "none";
   }
+  setOverlayMode("idle");
   syncDebugControls();
   updateScaleModeBadge();
 
