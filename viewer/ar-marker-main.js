@@ -226,7 +226,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     }
   }
 
-  /** カメラ映像が canvas の不透明クリアで隠れないようにする */
+  /** カメラ映像が canvas の不透明クリアで隠れないようにする（サイズは MindAR に任せる） */
   function ensureCameraVisibleThroughCanvas() {
     if (!mindarThree || !mindarThree.renderer) return;
     try {
@@ -243,10 +243,111 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     if (containerEl) {
       var videos = containerEl.querySelectorAll("video");
       for (var i = 0; i < videos.length; i++) {
+        // width/height/top/left は MindAR.resize() の値を維持する
         videos[i].style.zIndex = "0";
         videos[i].style.background = "transparent";
       }
     }
+    if (typeof mindarThree.resize === "function") {
+      try {
+        mindarThree.resize();
+      } catch (e) {}
+    }
+  }
+
+  var currentZoom = 1;
+  var zoomMode = "css"; // "css" | "hardware"
+  var zoomButtons = document.querySelectorAll("[data-zoom]");
+
+  function getVideoTrack() {
+    if (!containerEl) return null;
+    var videos = containerEl.querySelectorAll("video");
+    for (var i = 0; i < videos.length; i++) {
+      var stream = videos[i].srcObject;
+      if (stream && stream.getVideoTracks) {
+        var tracks = stream.getVideoTracks();
+        if (tracks && tracks[0]) return tracks[0];
+      }
+    }
+    return null;
+  }
+
+  function syncZoomButtons() {
+    for (var i = 0; i < zoomButtons.length; i++) {
+      var btn = zoomButtons[i];
+      var z = num(btn.getAttribute("data-zoom"), 1);
+      if (Math.abs(z - currentZoom) < 0.001) {
+        btn.classList.add("is-active");
+      } else {
+        btn.classList.remove("is-active");
+      }
+    }
+  }
+
+  function applyCssZoom(zoom) {
+    if (!containerEl) return;
+    // video と canvas を一緒に拡大し、MindAR の投影対応を崩さない
+    containerEl.style.transform = zoom === 1 ? "" : "scale(" + zoom + ")";
+    containerEl.style.transformOrigin = "center center";
+  }
+
+  function clearCssZoom() {
+    if (!containerEl) return;
+    containerEl.style.transform = "";
+    containerEl.style.transformOrigin = "";
+  }
+
+  function tryHardwareZoom(zoom) {
+    var track = getVideoTrack();
+    if (!track || typeof track.getCapabilities !== "function") {
+      return Promise.resolve(false);
+    }
+    var caps = track.getCapabilities();
+    if (!caps || caps.zoom == null) {
+      return Promise.resolve(false);
+    }
+    var minZ = caps.zoom.min != null ? caps.zoom.min : 1;
+    var maxZ = caps.zoom.max != null ? caps.zoom.max : 1;
+    // UI の 1 / 1.5 / 2 を capability 範囲へ線形マップ
+    var t = (zoom - 1) / (2 - 1); // 0..1 for 1x..2x
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    var target = minZ + (maxZ - minZ) * t;
+    return track
+      .applyConstraints({ advanced: [{ zoom: target }] })
+      .then(function () {
+        if (mindarThree && typeof mindarThree.resize === "function") {
+          mindarThree.resize();
+        }
+        return true;
+      })
+      .catch(function () {
+        return false;
+      });
+  }
+
+  function setZoom(zoom) {
+    var next = num(zoom, 1);
+    if (next < 1) next = 1;
+    if (next > 2) next = 2;
+    currentZoom = next;
+    syncZoomButtons();
+
+    if (!running) {
+      applyCssZoom(next);
+      return;
+    }
+
+    tryHardwareZoom(next).then(function (ok) {
+      if (ok) {
+        zoomMode = "hardware";
+        clearCssZoom();
+      } else {
+        zoomMode = "css";
+        applyCssZoom(next);
+      }
+      updateDebug(null);
+    });
   }
 
   function setSettingsMsg(message) {
@@ -472,6 +573,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
       "position: " + JSON.stringify(MODEL_CONFIG.position),
       "rotationDegrees: " + JSON.stringify(MODEL_CONFIG.rotationDegrees),
       "markerNormalAxis: Z（STEP4-A確認済み）",
+      "zoom: " + currentZoom + "x (" + zoomMode + ")",
       "",
       "【AR】",
       "recognition: " + getRecognitionLabel(),
@@ -732,6 +834,23 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
       axesHelper = new THREE.AxesHelper(0.6);
       axesHelper.visible = !!(axesToggle && axesToggle.checked);
       contentRoot.add(axesHelper);
+
+      // マーカー面の目安（z=0）。浮き上がり確認用。座標軸ON時に表示
+      var markerPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({
+          color: 0x22c55e,
+          transparent: true,
+          opacity: 0.22,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+        }),
+      );
+      markerPlane.name = "marker-plane-guide";
+      markerPlane.position.set(0, 0, 0);
+      markerPlane.visible = axesHelper.visible;
+      axesHelper.userData.markerPlane = markerPlane;
+      contentRoot.add(markerPlane);
     }
 
     if (modelLoadState === "ready" && rawModelTemplate && !modelRoot) {
@@ -873,6 +992,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     rotatedBoundingBox = null;
     transformedBoundingBox = null;
 
+    clearCssZoom();
     clearContainer();
 
     if (startBtn) startBtn.disabled = false;
@@ -1016,6 +1136,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
         }
 
         ensureCameraVisibleThroughCanvas();
+        setZoom(currentZoom);
 
         running = true;
         starting = false;
@@ -1129,7 +1250,16 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     axesToggle.addEventListener("change", function () {
       if (axesHelper) {
         axesHelper.visible = !!axesToggle.checked;
+        if (axesHelper.userData.markerPlane) {
+          axesHelper.userData.markerPlane.visible = !!axesToggle.checked;
+        }
       }
+    });
+  }
+  for (var zi = 0; zi < zoomButtons.length; zi++) {
+    zoomButtons[zi].addEventListener("click", function (event) {
+      var btn = event.currentTarget;
+      setZoom(btn.getAttribute("data-zoom"));
     });
   }
   if (applyConfigBtn) {
@@ -1223,6 +1353,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   }
   setOverlayMode("idle");
   syncDebugControls();
+  syncZoomButtons();
   updateScaleModeBadge();
 
   if (!window.isSecureContext) {
