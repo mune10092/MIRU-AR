@@ -301,12 +301,50 @@
         padding: 8px 10px;
         border-radius: 8px;
       }
+      #interaction-layer {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        touch-action: none;
+        pointer-events: none;
+        background: transparent;
+      }
+      #interaction-layer.is-active {
+        pointer-events: auto;
+      }
+      #rotate-hint {
+        position: absolute;
+        left: 50%;
+        bottom: calc(88px + env(safe-area-inset-bottom));
+        transform: translateX(-50%);
+        z-index: 3;
+        pointer-events: none;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.72);
+        color: #e2e8f0;
+        font-size: 12px;
+        white-space: nowrap;
+        opacity: 0;
+        transition: opacity 0.6s ease;
+      }
+      #rotate-hint.is-visible {
+        opacity: 1;
+      }
+      #reset-yaw-btn {
+        background: #1e293b;
+        color: #e2e8f0;
+        border: 1px solid #475569;
+        min-width: 110px;
+      }
     </style>
   </head>
   <body>
     <div class="app">
       <a class="top-link" href="/tools/gauge-001">← 測定具詳細へ</a>
       <div id="ar-container"></div>
+      <div id="interaction-layer" aria-hidden="true"></div>
+      <div id="rotate-hint">1本指で左右に動かすと回転できます</div>
 
       <div id="message-overlay">
         <div class="panel">
@@ -441,6 +479,7 @@
       <div class="controls">
         <button id="start-btn" type="button">ARを開始</button>
         <button id="stop-btn" type="button" disabled>AR停止</button>
+        <button id="reset-yaw-btn" type="button" disabled>向きを戻す</button>
         <div class="zoom-group" title="カメラズーム">
           <span>ズーム</span>
           <button id="zoom-1x-btn" class="zoom-btn is-active" type="button" data-zoom="1">1x</button>

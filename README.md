@@ -25,6 +25,7 @@ CADから出力したGLB形式の測定具を、PCでは通常の3Dモデルと�
 - Three.js による GLB 3Dビューア（`/tools/gauge-001`、静的 iframe ビューア）
 - ARカメラ動作テスト（`/ar-camera-test.html`、背面カメラ起動確認のみ）
 - ARマーカーテスト（`/ar-marker.html`、MindAR + 原寸GLB / デバッグ立方体）
+- 100mm原寸校正（`/ar-calibration.html`、管理者用）
 - 本 README
 
 未実装（後続ステップ）:
@@ -107,6 +108,7 @@ iPad: http://192.168.221.194:3000
 3. Netlify の **https** URL、または `localhost` で開く
 4. 「ARを開始」→ 印刷マーカーを映す → GLB（またはデバッグ立方体）が表示される
 5. `?debug=1` でマーカー実幅・位置・回転・倍率補正を調整し、「適用」「設定保存」
+6. 認識後、1本指の左右ドラッグで測定具を水平回転（STEP5.5）。大きさ・配置は変わりません。「向きを戻す」でCAD設定上の初期向きへ戻ります
 
 #### 原寸倍率の仕組み（STEP4-B）
 
@@ -138,6 +140,48 @@ AR上のモデル幅 = 0.4 × 4 = 1.6
 - `markerPhysicalWidthMm === 0` のときは「原寸未設定」（表示確認用）
 - 倍率は geometry に焼き込まず `Object3D.scale` に適用します
 
+### 100mm 原寸校正（STEP5・管理者用）
+
+```text
+/ar-calibration.html
+```
+
+デバッグ:
+
+```text
+/ar-calibration.html?debug=1
+```
+
+実測定具用の `/ar-marker.html` とは **ページ・設定・localStorage を分離** しています。
+
+| 用途 | ページ | localStorage キー |
+|------|--------|-------------------|
+| 実測定具 AR | `/ar-marker.html` | `miru-ar-model-settings-v1` |
+| 100mm 原寸校正 | `/ar-calibration.html` | `miru-ar-calibration-settings` |
+
+#### 準備
+
+1. CAD で **100 × 100 × 100 mm** の立方体を作成する
+2. **普段の測定具と同じ GLB エクスポート設定**で書き出す
+3. `public/models/calibration-100mm.glb` へ配置（Git 管理外）
+4. `public/ar/targets.mind` を配置
+5. 印刷した認識画像の横幅を定規で実測し、`markerPhysicalWidthMm` に入力
+6. `scaleCorrection` は最初 **1.000** のまま理論倍率で確認する
+
+#### 実測と比較
+
+1. マーカーを平らな机へ置く
+2. AR 開始 → 100mm 立方体を認識
+3. 定規または 100mm 基準物を **同じ平面** に置き、AR 立方体の辺と比較（マーカーを隠しすぎない）
+4. 近距離・中距離・遠距離で複数回確認し、測定1〜3へ入力
+5. 平均・誤差・**推奨補正値**（`100 / averageObservedMm`）を確認
+
+注意:
+
+- 推奨補正値は校正画面に表示するだけで、実測定具設定へは **自動適用しない**
+- 1回の測定だけで補正を決めず、再現性を確認する
+- AR は精密測定器ではなく、原寸感・操作性・干渉感覚のレビュー用途
+
 ## 主な画面
 
 | パス | 内容 |
@@ -146,7 +190,8 @@ AR上のモデル幅 = 0.4 × 4 = 1.6
 | `/tools` | 測定具の仮一覧 |
 | `/tools/gauge-001` | 測定具詳細 + GLBビューア + AR導線 |
 | `/ar-camera-test.html` | 背面カメラ起動テスト |
-| `/ar-marker.html` | MindAR マーカー + GLB/立方体 AR |
+| `/ar-marker.html` | MindAR マーカー + GLB/立方体 AR（実測定具） |
+| `/ar-calibration.html` | 100mm 原寸校正（管理者用・STEP5） |
 | `/tools/gauge-002` など | 測定具詳細（プレースホルダ） |
 
 ## GLB の配置

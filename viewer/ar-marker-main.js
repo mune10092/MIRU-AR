@@ -47,6 +47,9 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   var scaleCorrFlagEl = document.getElementById("scale-corr-flag");
   var settingsMsgEl = document.getElementById("settings-msg");
   var axesLabelEl = document.getElementById("axes-label");
+  var interactionLayerEl = document.getElementById("interaction-layer");
+  var rotateHintEl = document.getElementById("rotate-hint");
+  var resetYawBtn = document.getElementById("reset-yaw-btn");
 
   var modeSelect = document.getElementById("mode-select");
   var alignSelect = document.getElementById("align-select");
@@ -76,6 +79,8 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   var mindarThree = null;
   var anchor = null;
   var contentRoot = null;
+  var placementRoot = null;
+  var userRotationRoot = null;
   var modelRoot = null;
   var modelScene = null;
   var cube = null;
@@ -99,6 +104,36 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   var appliedScale = 1;
   var lastBaseScale = 1;
   var lastMarkerWidthMeters = 0;
+
+  /**
+   * STEP5.5: 利用者操作の水平回転（CAD校正用 transform とは完全分離）
+   * - userRotation は localStorage に保存しない
+   * - MODEL_CONFIG.rotationDegrees へ書き戻さない
+   */
+  var ROTATION_SENSITIVITY = 0.005;
+  var USER_ROTATION_DIRECTION = -1; // 右ドラッグで画面上時計回り。逆なら +1
+  var INERTIA_DAMPING_PER_FRAME_60FPS = 0.94;
+  var MAX_ANGULAR_VELOCITY = 8; // rad/s
+  var MIN_FLICK_VELOCITY = 0.35; // rad/s 未満なら惰性なし
+  var STOP_ANGULAR_VELOCITY = 0.04;
+  var YAW_RESET_MS = 250;
+
+  var userRotation = 0; // radians, Z軸（マーカー法線）
+  var angularVelocity = 0;
+  var dragging = false;
+  var activePointerId = null;
+  var extraPointerCount = 0;
+  var lastPointerX = 0;
+  var lastPointerTime = 0;
+  var lastPointerVx = 0; // px/s
+  var rotationEventsBound = false;
+  var usePointerEvents =
+    typeof window !== "undefined" && typeof window.PointerEvent !== "undefined";
+  var yawResetActive = false;
+  var yawResetFrom = 0;
+  var yawResetStart = 0;
+  var lastInertiaTime = 0;
+  var rotateHintTimer = null;
 
   function cloneConfig(src) {
     return JSON.parse(JSON.stringify(src));
@@ -575,6 +610,23 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
       "markerNormalAxis: Z（STEP4-A確認済み）",
       "zoom: " + currentZoom + "x (" + zoomMode + ")",
       "",
+      "【利用者回転 STEP5.5】※MODEL_CONFIG.rotationDegreesとは別",
+      "userRotationDegrees: " +
+        ((userRotation * 180) / Math.PI).toFixed(2),
+      "angularVelocity: " + Number(angularVelocity).toFixed(4) + " rad/s",
+      "dragging: " + String(dragging),
+      "activePointerId: " +
+        (activePointerId == null ? "null" : String(activePointerId)),
+      "rotationSensitivity: " + ROTATION_SENSITIVITY,
+      "inertia: " +
+        (dragging
+          ? "dragging"
+          : yawResetActive
+            ? "resetting"
+            : Math.abs(angularVelocity) > STOP_ANGULAR_VELOCITY
+              ? "coasting"
+              : "stopped"),
+      "",
       "【AR】",
       "recognition: " + getRecognitionLabel(),
       "isSecureContext: " + String(window.isSecureContext),
@@ -751,11 +803,22 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 
   /**
    * 処理順:
-   * 1) rotation 2) finalScale 3) matrix更新 4) bbox再計算
-   * 5) 底面合わせ(Z=法線) 6) XY中心合わせ 7) position手動補正
+   * 1) CAD rotation + finalScale（modelRoot）
+   * 2) matrix更新 → bbox再計算
+   * 3) 底面合わせ(Z=法線) + XY中心 + 手動position（placementRoot）
+   * 4) 利用者Z回転は userRotationRoot のみ（ここでは上書きしない）
    */
   function applyTransformToModel() {
-    if (!modelRoot || !modelScene || !contentRoot) return;
+    if (!modelRoot || !modelScene || !contentRoot || !placementRoot) return;
+
+    if (userRotationRoot) {
+      userRotationRoot.position.set(0, 0, 0);
+      userRotationRoot.scale.set(1, 1, 1);
+      userRotationRoot.rotation.set(0, 0, 0);
+    }
+    placementRoot.position.set(0, 0, 0);
+    placementRoot.rotation.set(0, 0, 0);
+    placementRoot.scale.set(1, 1, 1);
 
     modelRoot.position.set(0, 0, 0);
     modelRoot.rotation.set(0, 0, 0);
@@ -793,13 +856,303 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
       alignZ = -box.min.z;
     }
 
-    modelRoot.position.set(
+    placementRoot.position.set(
       alignX + num(MODEL_CONFIG.position.x, 0),
       alignY + num(MODEL_CONFIG.position.y, 0),
       alignZ + num(MODEL_CONFIG.position.z, 0),
     );
-    modelRoot.updateMatrixWorld(true);
+    placementRoot.updateMatrixWorld(true);
     transformedBoundingBox = getBoxInParentSpace(modelScene, contentRoot);
+    applyUserRotationToRoot();
+  }
+
+  function normalizeUserRotation(rad) {
+    var twoPi = Math.PI * 2;
+    var n = rad % twoPi;
+    if (n > Math.PI) n -= twoPi;
+    if (n < -Math.PI) n += twoPi;
+    return n;
+  }
+
+  function applyUserRotationToRoot() {
+    if (!userRotationRoot) return;
+    userRotationRoot.position.set(0, 0, 0);
+    userRotationRoot.scale.set(1, 1, 1);
+    userRotationRoot.rotation.set(0, 0, userRotation);
+  }
+
+  function setInteractionLayerActive(active) {
+    if (!interactionLayerEl) return;
+    if (active) interactionLayerEl.classList.add("is-active");
+    else interactionLayerEl.classList.remove("is-active");
+  }
+
+  function showRotateHintBriefly() {
+    if (!rotateHintEl) return;
+    rotateHintEl.classList.add("is-visible");
+    if (rotateHintTimer) {
+      clearTimeout(rotateHintTimer);
+      rotateHintTimer = null;
+    }
+    rotateHintTimer = setTimeout(function () {
+      if (rotateHintEl) rotateHintEl.classList.remove("is-visible");
+      rotateHintTimer = null;
+    }, 4000);
+  }
+
+  function hideRotateHint() {
+    if (rotateHintTimer) {
+      clearTimeout(rotateHintTimer);
+      rotateHintTimer = null;
+    }
+    if (rotateHintEl) rotateHintEl.classList.remove("is-visible");
+  }
+
+  function eventClientX(event) {
+    if (event.clientX != null) return event.clientX;
+    if (event.changedTouches && event.changedTouches[0]) {
+      return event.changedTouches[0].clientX;
+    }
+    if (event.touches && event.touches[0]) return event.touches[0].clientX;
+    return 0;
+  }
+
+  function isUiTarget(target) {
+    if (!target || !target.closest) return false;
+    return !!target.closest(
+      "button, a, input, select, textarea, label, .controls, .panel, .top-link, #debug-panel",
+    );
+  }
+
+  function beginDrag(pointerId, x, eventTarget) {
+    if (!running || !targetFound) return false;
+    if (isUiTarget(eventTarget)) return false;
+    yawResetActive = false;
+    angularVelocity = 0;
+    dragging = true;
+    activePointerId = pointerId;
+    extraPointerCount = 0;
+    lastPointerX = x;
+    lastPointerTime = performance.now();
+    lastPointerVx = 0;
+    return true;
+  }
+
+  function moveDrag(x) {
+    if (!dragging) return;
+    var now = performance.now();
+    var dtMs = now - lastPointerTime;
+    var deltaX = x - lastPointerX;
+    userRotation = normalizeUserRotation(
+      userRotation + deltaX * ROTATION_SENSITIVITY * USER_ROTATION_DIRECTION,
+    );
+    applyUserRotationToRoot();
+    if (dtMs > 0 && dtMs < 80) {
+      lastPointerVx = (deltaX / dtMs) * 1000;
+    }
+    lastPointerX = x;
+    lastPointerTime = now;
+  }
+
+  function endDrag() {
+    if (!dragging) {
+      activePointerId = null;
+      extraPointerCount = 0;
+      return;
+    }
+    dragging = false;
+    var now = performance.now();
+    var sinceMove = now - lastPointerTime;
+    var vel =
+      lastPointerVx * ROTATION_SENSITIVITY * USER_ROTATION_DIRECTION;
+    if (sinceMove < 80 && Math.abs(vel) >= MIN_FLICK_VELOCITY) {
+      angularVelocity = vel;
+      if (angularVelocity > MAX_ANGULAR_VELOCITY) {
+        angularVelocity = MAX_ANGULAR_VELOCITY;
+      }
+      if (angularVelocity < -MAX_ANGULAR_VELOCITY) {
+        angularVelocity = -MAX_ANGULAR_VELOCITY;
+      }
+    } else {
+      angularVelocity = 0;
+    }
+    activePointerId = null;
+    extraPointerCount = 0;
+    lastInertiaTime = now;
+  }
+
+  function cancelDrag() {
+    dragging = false;
+    activePointerId = null;
+    extraPointerCount = 0;
+    angularVelocity = 0;
+    lastPointerVx = 0;
+  }
+
+  function onPointerDown(event) {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    if (dragging) {
+      extraPointerCount += 1;
+      cancelDrag();
+      return;
+    }
+    if (!beginDrag(event.pointerId, event.clientX, event.target)) return;
+    if (interactionLayerEl && interactionLayerEl.setPointerCapture) {
+      try {
+        interactionLayerEl.setPointerCapture(event.pointerId);
+      } catch (e) {}
+    }
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function onPointerMove(event) {
+    if (!dragging || event.pointerId !== activePointerId) return;
+    moveDrag(event.clientX);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function onPointerUp(event) {
+    if (event.pointerId !== activePointerId) {
+      if (dragging) extraPointerCount = Math.max(0, extraPointerCount - 1);
+      return;
+    }
+    endDrag();
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function onPointerCancel() {
+    cancelDrag();
+  }
+
+  function touchId(touch) {
+    return touch && touch.identifier != null ? touch.identifier : "touch";
+  }
+
+  function onTouchStart(event) {
+    if (event.touches && event.touches.length > 1) {
+      cancelDrag();
+      return;
+    }
+    var touch = event.changedTouches && event.changedTouches[0];
+    if (!touch) return;
+    if (!beginDrag(touchId(touch), touch.clientX, event.target)) return;
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function onTouchMove(event) {
+    if (!dragging) return;
+    var touch = null;
+    var list = event.changedTouches || event.touches;
+    if (!list) return;
+    for (var i = 0; i < list.length; i++) {
+      if (touchId(list[i]) === activePointerId) {
+        touch = list[i];
+        break;
+      }
+    }
+    if (!touch && event.touches && event.touches[0]) touch = event.touches[0];
+    if (!touch) return;
+    moveDrag(touch.clientX);
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function onTouchEnd(event) {
+    if (!dragging) return;
+    var list = event.changedTouches;
+    if (list) {
+      var matched = false;
+      for (var i = 0; i < list.length; i++) {
+        if (touchId(list[i]) === activePointerId) matched = true;
+      }
+      if (!matched) return;
+    }
+    endDrag();
+    if (event.cancelable) event.preventDefault();
+  }
+
+  function bindRotationEvents() {
+    if (rotationEventsBound || !interactionLayerEl) return;
+    if (usePointerEvents) {
+      interactionLayerEl.addEventListener("pointerdown", onPointerDown);
+      interactionLayerEl.addEventListener("pointermove", onPointerMove);
+      interactionLayerEl.addEventListener("pointerup", onPointerUp);
+      interactionLayerEl.addEventListener("pointercancel", onPointerCancel);
+    } else {
+      interactionLayerEl.addEventListener("touchstart", onTouchStart, {
+        passive: false,
+      });
+      interactionLayerEl.addEventListener("touchmove", onTouchMove, {
+        passive: false,
+      });
+      interactionLayerEl.addEventListener("touchend", onTouchEnd, {
+        passive: false,
+      });
+      interactionLayerEl.addEventListener("touchcancel", onPointerCancel);
+    }
+    rotationEventsBound = true;
+  }
+
+  function unbindRotationEvents() {
+    if (!rotationEventsBound || !interactionLayerEl) return;
+    interactionLayerEl.removeEventListener("pointerdown", onPointerDown);
+    interactionLayerEl.removeEventListener("pointermove", onPointerMove);
+    interactionLayerEl.removeEventListener("pointerup", onPointerUp);
+    interactionLayerEl.removeEventListener("pointercancel", onPointerCancel);
+    interactionLayerEl.removeEventListener("touchstart", onTouchStart);
+    interactionLayerEl.removeEventListener("touchmove", onTouchMove);
+    interactionLayerEl.removeEventListener("touchend", onTouchEnd);
+    interactionLayerEl.removeEventListener("touchcancel", onPointerCancel);
+    rotationEventsBound = false;
+    cancelDrag();
+  }
+
+  function stepUserRotation(now) {
+    if (!userRotationRoot) return;
+    if (dragging) {
+      lastInertiaTime = now;
+      return;
+    }
+    if (yawResetActive) {
+      var t = (now - yawResetStart) / YAW_RESET_MS;
+      if (t >= 1) {
+        userRotation = 0;
+        yawResetActive = false;
+        angularVelocity = 0;
+      } else {
+        userRotation = yawResetFrom * (1 - t);
+      }
+      applyUserRotationToRoot();
+      lastInertiaTime = now;
+      return;
+    }
+    if (Math.abs(angularVelocity) <= STOP_ANGULAR_VELOCITY) {
+      angularVelocity = 0;
+      lastInertiaTime = now;
+      return;
+    }
+    var dt = (now - lastInertiaTime) / 1000;
+    if (!(dt > 0) || dt > 0.1) dt = 1 / 60;
+    userRotation = normalizeUserRotation(userRotation + angularVelocity * dt);
+    var damp = Math.pow(INERTIA_DAMPING_PER_FRAME_60FPS, dt * 60);
+    angularVelocity *= damp;
+    applyUserRotationToRoot();
+    lastInertiaTime = now;
+  }
+
+  function resetUserYawSmooth() {
+    angularVelocity = 0;
+    dragging = false;
+    activePointerId = null;
+    extraPointerCount = 0;
+    if (Math.abs(userRotation) < 0.001) {
+      userRotation = 0;
+      yawResetActive = false;
+      applyUserRotationToRoot();
+      return;
+    }
+    yawResetFrom = userRotation;
+    yawResetStart = performance.now();
+    yawResetActive = true;
   }
 
   function applyVisibility() {
@@ -815,6 +1168,20 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
       contentRoot = new THREE.Group();
       contentRoot.name = "ar-content-root";
       anchor.group.add(contentRoot);
+    }
+
+    if (!placementRoot) {
+      placementRoot = new THREE.Group();
+      placementRoot.name = "ar-placement-root";
+      contentRoot.add(placementRoot);
+    }
+
+    if (!userRotationRoot) {
+      userRotationRoot = new THREE.Group();
+      userRotationRoot.name = "ar-user-rotation-root";
+      userRotationRoot.scale.set(1, 1, 1);
+      placementRoot.add(userRotationRoot);
+      applyUserRotationToRoot();
     }
 
     if (!cube) {
@@ -858,7 +1225,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
       modelRoot.name = "ar-model-root";
       modelScene = rawModelTemplate.clone(true);
       modelRoot.add(modelScene);
-      contentRoot.add(modelRoot);
+      userRotationRoot.add(modelRoot);
       applyTransformToModel();
     }
 
@@ -983,6 +1350,8 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     mindarThree = null;
     anchor = null;
     contentRoot = null;
+    placementRoot = null;
+    userRotationRoot = null;
     modelRoot = null;
     modelScene = null;
     cube = null;
@@ -991,6 +1360,15 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
     directionalLight = null;
     rotatedBoundingBox = null;
     transformedBoundingBox = null;
+
+    unbindRotationEvents();
+    setInteractionLayerActive(false);
+    hideRotateHint();
+    cancelDrag();
+    yawResetActive = false;
+    angularVelocity = 0;
+    // userRotation はページ内では保持（再認識・再開始後も同じ向き）
+    if (resetYawBtn) resetYawBtn.disabled = true;
 
     clearCssZoom();
     clearContainer();
@@ -1040,15 +1418,21 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
 
     anchor.onTargetFound = function () {
       targetFound = true;
-      // 認識中はUIを隠してカメラ映像＋ARモデルだけ見せる（実物との原寸比較用）
       setOverlayVisible(false);
       setStatus("マーカー認識中（カメラ映像と比較できます）", false);
+      setInteractionLayerActive(true);
+      showRotateHintBriefly();
       updateDebug(null);
     };
     anchor.onTargetLost = function () {
       targetFound = false;
+      angularVelocity = 0;
+      yawResetActive = false;
+      cancelDrag();
       setOverlayVisible(true);
       setOverlayMode("ar");
+      setInteractionLayerActive(false);
+      hideRotateHint();
       setStatus("マーカーを映してください", false);
       updateDebug(null);
     };
@@ -1141,16 +1525,20 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
         running = true;
         starting = false;
         targetFound = false;
+        lastInertiaTime = performance.now();
+        bindRotationEvents();
+        setInteractionLayerActive(false);
         if (startBtn) startBtn.disabled = true;
         if (stopBtn) stopBtn.disabled = false;
+        if (resetYawBtn) resetYawBtn.disabled = false;
         setOverlayVisible(true);
         setOverlayMode("ar");
         setStatus("マーカー検索中…（カメラ映像が見えます）", false);
         updateDebug(null);
 
         mindarThree.renderer.setAnimationLoop(function () {
-          // 毎フレーム透過クリアを維持（黒でカメラを覆わない）
           mindarThree.renderer.setClearColor(0x000000, 0);
+          stepUserRotation(performance.now());
           mindarThree.renderer.render(mindarThree.scene, mindarThree.camera);
         });
       })
@@ -1244,6 +1632,12 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   if (stopBtn) {
     stopBtn.addEventListener("click", function () {
       stopAR();
+    });
+  }
+  if (resetYawBtn) {
+    resetYawBtn.addEventListener("click", function () {
+      resetUserYawSmooth();
+      updateDebug(null);
     });
   }
   if (axesToggle) {
@@ -1342,6 +1736,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
   applyLoadedSettings(loadModelSettings());
 
   if (stopBtn) stopBtn.disabled = true;
+  if (resetYawBtn) resetYawBtn.disabled = true;
   if (debugPanelEl) {
     debugPanelEl.style.display = DEBUG_QUERY ? "block" : "none";
     if (DEBUG_QUERY) {

@@ -77,6 +77,31 @@ AR上サイズ = 0.4 × 4 = 1.6
 - 倍率は geometry に焼き込まず、`Object3D.scale` で適用する
 - 印刷時の「フィット / 縮小」に注意し、必ず定規で実測すること
 
+## calibration-100mm.glb（STEP5 原寸校正用）
+
+CAD で **100 × 100 × 100 mm** の立方体を作成し、測定具と同じエクスポート条件で GLB 化します。
+
+```text
+public/models/calibration-100mm.glb
+```
+
+URL:
+
+```text
+/models/calibration-100mm.glb
+```
+
+確認ページ（管理者用）:
+
+```text
+/ar-calibration.html
+```
+
+- Git 管理外（`*.glb` は gitignore）
+- 無くても build は成功。実行時のみエラー表示
+- 校正結果は `miru-ar-calibration-settings`（localStorage）へ保存
+- 実測定具用 `miru-ar-model-settings-v1` は上書きしない
+
 ## ビルドについて
 
 ファイルが無い場合でも `npm run lint` / `npm run build` は成功します。  
