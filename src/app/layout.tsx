@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Header } from "@/components/Header";
+import { getDefaultModelSrc } from "@/config/modelSrc";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,6 +31,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <Script
+          id="miru-model-src"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.MIRU_DEFAULT_MODEL_SRC=${JSON.stringify(getDefaultModelSrc())};`,
+          }}
+        />
         {/* /_next チャンクに依存しない静的JS（iPad切り分け用） */}
         <Script src="/ipad-probe.js" strategy="beforeInteractive" />
         <Header />

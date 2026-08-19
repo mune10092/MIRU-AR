@@ -3,10 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { JsProbe } from "@/components/JsProbe";
 import { StaticGlbViewer } from "@/components/three/StaticGlbViewer";
+import { getDefaultModelSrc } from "@/config/modelSrc";
 import { getStatusClassName, getStatusLabel } from "@/lib/status";
 import { getToolById, getTools } from "@/lib/tools";
-
-const DEMO_MODEL_SRC = "/models/demo.glb";
 
 type ToolDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -82,7 +81,7 @@ export default async function ToolDetailPage({ params }: ToolDetailPageProps) {
               <div className="mt-4 space-y-3">
                 <JsProbe />
                 <div className="overflow-hidden rounded-md border border-slate-200">
-                  <StaticGlbViewer src={DEMO_MODEL_SRC} />
+                  <StaticGlbViewer src={getDefaultModelSrc()} />
                 </div>
                 <a
                   href="/ar-camera-test.html"
@@ -115,7 +114,7 @@ export default async function ToolDetailPage({ params }: ToolDetailPageProps) {
             <>
               <h2 className="text-sm font-semibold text-slate-900">AR表示</h2>
               <p className="mt-2 text-sm text-slate-500">
-                MindAR による画像マーカートラッキングの試験ページです（立方体表示）。
+                MindAR による画像マーカートラッキングです。HTTPS で直接開きます。
               </p>
               <div className="mt-4 space-y-3">
                 <a

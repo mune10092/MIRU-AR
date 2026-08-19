@@ -65,9 +65,38 @@
       };
     </script>
     <!-- onload で status を上書きしない（バンドル内の文言を正とする） -->
-    <script
-      src="/glb-viewer.bundle.js"
-      onerror="miruSetStatus('バンドルの読み込みに失敗しました', true)"
-    ></script>
+    <script>
+      (function () {
+        var bundle = "/glb-viewer.bundle.js";
+        function fail() {
+          if (typeof miruSetStatus === "function") {
+            miruSetStatus("バンドルの読み込みに失敗しました", true);
+          }
+        }
+        function load(url) {
+          var s = document.createElement("script");
+          s.src = url;
+          s.onerror = fail;
+          document.body.appendChild(s);
+        }
+        function fallback() {
+          load(bundle);
+        }
+        if (typeof fetch !== "function") {
+          fallback();
+          return;
+        }
+        fetch("/build-meta.json", { cache: "no-store" })
+          .then(function (res) {
+            if (!res.ok) throw new Error("no meta");
+            return res.json();
+          })
+          .then(function (meta) {
+            var v = meta && meta.files ? meta.files[bundle] : "";
+            load(v ? bundle + "?v=" + v : bundle);
+          })
+          .catch(fallback);
+      })();
+    </script>
   </body>
 </html>

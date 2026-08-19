@@ -9,7 +9,8 @@
     "build:ar-camera-test": "node scripts/build-ar-camera-test.mjs",
     "build:ar-marker": "node scripts/build-ar-marker.mjs",
     "build:ar-calibration": "node scripts/build-ar-calibration.mjs",
-    "build": "npm run build:viewer && npm run build:ar-camera-test && npm run build:ar-marker && npm run build:ar-calibration && next build",
+    "build:meta": "node scripts/write-build-meta.mjs",
+    "build": "npm run build:viewer && npm run build:ar-camera-test && npm run build:ar-marker && npm run build:ar-calibration && npm run build:meta && next build",
     "start": "next start",
     "start:lan": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint"

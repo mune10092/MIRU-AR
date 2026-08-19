@@ -2,5 +2,26 @@
   command = "npm run build"
   publish = ".next"
 
+[build.environment]
+  # 秘密情報ではない。Netlify ではダミーGLBのみ使う
+  NEXT_PUBLIC_MIRU_PUBLIC_TEST = "true"
+  NODE_VERSION = "20"
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Safari に古い静的HTML/JSが残りにくくする（大規模な仕組みは追加しない）
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/build-meta.json"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.bundle.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

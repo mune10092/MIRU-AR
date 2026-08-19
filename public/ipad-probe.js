@@ -12,7 +12,10 @@
 
   function run() {
     update("JS診断: 静的スクリプトOK / GLB確認中…");
-    fetch("/models/demo.glb")
+    fetch(
+      (typeof window !== "undefined" && window.MIRU_DEFAULT_MODEL_SRC) ||
+        "/models/demo.glb",
+    )
       .then(function (res) {
         update(
           res.ok

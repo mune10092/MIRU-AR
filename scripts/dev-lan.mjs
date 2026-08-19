@@ -54,7 +54,7 @@ console.log(`  iPad: http://${displayIp}:3000`);
 console.log("");
 
 try {
-  await run("npx", ["next", "build"]);
+  await run("npm", ["run", "build"]);
   console.log("");
   console.log("本番サーバーを起動中...");
   console.log(`iPad ではプライベートブラウズで http://${displayIp}:3000/tools/gauge-001 を開いてください`);

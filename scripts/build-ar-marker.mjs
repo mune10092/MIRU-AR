@@ -1,6 +1,7 @@
 import * as esbuild from "esbuild";
 import { transformSync } from "@babel/core";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { publicTestDefine } from "./public-env.mjs";
 
 const rawFile = "public/ar-marker.raw.js";
 const outFile = "public/ar-marker.bundle.js";
@@ -55,6 +56,7 @@ await esbuild.build({
   alias: {
     three: "three-for-mindar",
   },
+  define: publicTestDefine,
   plugins: [stubNodeBuiltinsPlugin],
 });
 

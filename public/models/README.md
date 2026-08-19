@@ -4,10 +4,11 @@
 
 ## 注意
 
-- `*.glb` は Git 管理対象外です（`.gitignore` で除外）
-- 実ファイルをリポジトリにコミットしないでください
+- 実測定具 `demo.glb` / `calibration-100mm.glb` は Git 管理対象外です
+- **実測定具 GLB は Supabase Private Storage 導入まで Netlify へ公開しない**
+- Netlify 公開テスト用の `demo-public.glb` だけ Git 登録できます（会社情報を含まないダミー）
 
-## demo.glb の配置手順（通常3D / AR 共通）
+## demo.glb の配置手順（ローカル実測定具）
 
 1. CAD などから GLB を書き出す
 2. ファイル名を `demo.glb` にする
@@ -24,6 +25,26 @@ public/models/demo.glb
 ```text
 /models/demo.glb
 ```
+
+`NEXT_PUBLIC_MIRU_PUBLIC_TEST` が未設定のとき、ローカルはこれを使います。
+
+## demo-public.glb（Netlify 公開テスト専用）
+
+会社情報を含まないダミーモデルだけを置きます。
+
+```text
+public/models/demo-public.glb
+```
+
+URL:
+
+```text
+/models/demo-public.glb
+```
+
+Netlify では `NEXT_PUBLIC_MIRU_PUBLIC_TEST=true`（`netlify.toml` で設定済み）のため、
+ビューアと `/ar-marker.html` は `demo-public.glb` を読みます。
+
 
 ## 通常3Dビューアでの確認
 

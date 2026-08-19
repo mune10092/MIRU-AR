@@ -1,6 +1,7 @@
 import * as esbuild from "esbuild";
 import { transformSync } from "@babel/core";
 import { readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { publicTestDefine } from "./public-env.mjs";
 
 const rawFile = "public/glb-viewer.raw.js";
 const outFile = "public/glb-viewer.bundle.js";
@@ -14,6 +15,7 @@ await esbuild.build({
   outfile: rawFile,
   minify: false,
   target: ["es2020"],
+  define: publicTestDefine,
 });
 
 const raw = readFileSync(rawFile, "utf8");

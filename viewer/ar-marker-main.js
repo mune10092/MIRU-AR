@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
+import { getDefaultModelSrc } from "../src/config/modelSrc";
 
 (function () {
   /**
@@ -22,7 +23,7 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
    * - bottom-center は回転・倍率後の bbox で minZ→0、XY中心→マーカー中心
    */
   var MODEL_CONFIG = {
-    src: "/models/demo.glb",
+    src: getDefaultModelSrc(),
     visibleMode: "model", // "model" | "cube"
     markerPhysicalWidthMm: 0,
     scaleCorrection: 1.0,
@@ -1289,7 +1290,9 @@ import { MindARThree } from "mind-ar/dist/mindar-image-three.prod.js";
           modelLoadPromise = null;
           modelLoadError =
             (error && error.message ? error.message : String(error)) +
-            " /models/demo.glb を public/models/ に配置してください。";
+            " " +
+            MODEL_CONFIG.src +
+            " を public/models/ に配置してください。";
           refreshStatusForModel();
           updateDebug({
             name: error && error.name ? error.name : "LoadError",

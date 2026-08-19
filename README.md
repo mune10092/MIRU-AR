@@ -26,15 +26,16 @@ CADから出力したGLB形式の測定具を、PCでは通常の3Dモデルと�
 - ARカメラ動作テスト（`/ar-camera-test.html`、背面カメラ起動確認のみ）
 - ARマーカーテスト（`/ar-marker.html`、MindAR + 原寸GLB / デバッグ立方体）
 - 100mm原寸校正（`/ar-calibration.html`、管理者用）
+- Netlify 公開テスト（ダミー `demo-public.glb` のみ。実測定具は非公開）
 - 本 README
 
 未実装（後続ステップ）:
 
-- GLB の原寸大AR表示
 - Supabase
 - ログイン
 - QRコード
 - コメント
+- 実測定具 GLB のクラウド配信（Private Storage）
 
 ## 必要環境
 
@@ -199,30 +200,88 @@ AR上のモデル幅 = 0.4 × 4 = 1.6
 詳細は [public/models/README.md](public/models/README.md) を参照してください。
 
 ```bash
-# 例: ローカルに demo.glb を置く（Git には含めない）
+# ローカル実測定具（Git には含めない）
 # public/models/demo.glb
+
+# Netlify 公開テスト用ダミー（Git 登録可）
+# public/models/demo-public.glb
 ```
+
+切替は `src/config/modelSrc.ts` と環境変数 `NEXT_PUBLIC_MIRU_PUBLIC_TEST` のみです。
+
+| 環境 | フラグ | 読み込む GLB |
+|------|--------|----------------|
+| ローカル（既定） | 未設定 / false | `/models/demo.glb` |
+| Netlify 公開テスト | true（`netlify.toml`） | `/models/demo-public.glb` |
+
+**実測定具 GLB は Supabase Private Storage 導入まで Netlify へ公開しない。**
 
 ## スクリプト
 
 ```bash
 npm run dev    # 開発サーバー
 npm run lint   # ESLint
-npm run build  # 本番ビルド
+npm run build  # 本番ビルド（静的ビューア/ARバンドル含む）
 npm run start  # 本番サーバー（build 後）
 ```
 
-## Netlify へのデプロイ
+## Netlify 公開テスト（STEP6）
 
-1. このリポジトリを Git 連携で Netlify に接続する
-2. ビルド設定は `netlify.toml` を参照（`npm run build`、`@netlify/plugin-nextjs`）
-3. 環境変数は Netlify の UI で `.env.example` に準拠して設定する（後続ステップ）
+今回は技術確認のみです。実測定具 `demo.glb` は公開しません。
 
-ローカルから CLI でデプロイする場合の例:
+### 事前準備
+
+1. 会社情報を含まないダミーを `public/models/demo-public.glb` へ配置する
+2. 実測定具が Git 対象外であることを確認する
 
 ```bash
-npx netlify deploy --build
+git status
+git check-ignore -v public/models/demo.glb
+git ls-files "*.glb"
 ```
+
+期待:
+
+- `demo.glb` は `git status` に **出てこない**（または ignored）
+- `git ls-files "*.glb"` に `demo.glb` が **含まれない**
+- `demo-public.glb` だけ GLB として追跡されてよい
+- `.env.local` は追跡されない
+
+3. `public/ar/targets.mind` は認識画像ターゲットであり測定具形状を含まない前提で、**Git 登録済み**です
+
+### push 直前チェック
+
+- [ ] `git status` に `public/models/demo.glb` がない
+- [ ] 秘密情報・`.env.local`・社内パスが含まれていない
+- [ ] 追加するのは `demo-public.glb`（ダミー）とソース変更のみ
+- [ ] `npm run lint` / `npm run build` が通る
+
+### Netlify 管理画面
+
+1. リポジトリを Git 連携する
+2. ビルドコマンドは `netlify.toml` の `npm run build`（変更不要）
+3. Node 20（`netlify.toml` の `NODE_VERSION`）
+4. 環境変数 `NEXT_PUBLIC_MIRU_PUBLIC_TEST=true` は `netlify.toml` に定義済み。**追加の秘密変数は登録しない**
+5. Supabase 用変数は今回設定しない
+
+### デプロイ後（iPhone / iPad Safari）
+
+1. Netlify の **https** URL を開く
+2. `/` `/tools` `/tools/gauge-001` が表示される
+3. `/glb-viewer.html` でダミー GLB
+4. `/ar-marker.html` を **トップレベル**（iframe ではない）で開く
+5. カメラを許可する
+6. 印刷マーカーを認識し、`demo-public.glb` が表示される
+7. 1本指フリック回転ができる
+8. `/ar-calibration.html` は校正GLB未配置なら読込エラーでよい（実校正はローカル）
+9. `/ar/targets.mind` が 200 で取得できる
+
+ローカル回帰:
+
+- STEP2 `/tools/gauge-001`（`demo.glb`）
+- STEP3 / 4 / 5.5 `/ar-marker.html`
+- STEP5 `/ar-calibration.html`
+
 
 ## ディレクトリ構成（抜粋）
 
@@ -233,7 +292,7 @@ src/
   components/three/    # GLB 3Dビューア（Client Component）
   data/tools.ts        # 仮の測定具データ
   lib/tools.ts         # 取得ヘルパー（将来 Supabase 差し替え用）
-public/models/         # GLB配置先（*.glb は Git 除外）
+public/models/         # 実測定具 *.glb は Git 除外。demo-public.glb のみ公開可
 netlify.toml
 .env.example
 ```

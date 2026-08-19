@@ -206,7 +206,7 @@ export default function GlbViewerClient({
         );
         if (magic !== "glTF") {
           throw new Error(
-            "GLBファイルではありません。public/models/demo.glb の配置を確認してください",
+            "GLBファイルではありません。モデルファイルの配置を確認してください",
           );
         }
 

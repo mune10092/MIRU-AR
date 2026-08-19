@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { getDefaultModelSrc } from "../src/config/modelSrc";
 
 function setStatus(message, isError) {
   if (typeof window.miruSetStatus === "function") {
@@ -16,7 +17,7 @@ function setStatus(message, isError) {
 
 function getModelUrl() {
   var params = new URLSearchParams(window.location.search);
-  return params.get("src") || "/models/demo.glb";
+  return params.get("src") || getDefaultModelSrc();
 }
 
 function isIOSDevice() {
